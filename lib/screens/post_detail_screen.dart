@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
@@ -13,7 +14,8 @@ class PostDetailScreen extends StatefulWidget {
   State<PostDetailScreen> createState() => _PostDetailScreenState();
 }
 
-class _PostDetailScreenState extends State<PostDetailScreen> {
+class _PostDetailScreenState extends State<PostDetailScreen>
+    with SingleTickerProviderStateMixin {
   final List<Map<String, dynamic>> _comments = [];
   dynamic _lastDoc;
   bool _loadingComments = true;
@@ -24,19 +26,50 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final _commentCtrl = TextEditingController();
   late int _likes;
   late int _commentCount;
+  bool _hasLikedPost = false;
+  final Set<String> _likedCommentIds = {};
+
+  late AnimationController _heartCtrl;
+  late Animation<double> _heartScale;
 
   @override
   void initState() {
     super.initState();
     _likes = widget.post['likes'] ?? 0;
     _commentCount = widget.post['commentCount'] ?? 0;
+
+    _heartCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _heartScale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.5), weight: 40),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.5, end: 1.0).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60,
+      ),
+    ]).animate(_heartCtrl);
+
     _loadComments();
+    _loadLikeState();
   }
 
   @override
   void dispose() {
     _commentCtrl.dispose();
+    _heartCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadLikeState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final likedPosts = prefs.getStringList('liked_posts') ?? [];
+    final likedComments = prefs.getStringList('liked_comments') ?? [];
+    if (!mounted) return;
+    setState(() {
+      _hasLikedPost = likedPosts.contains(widget.post['id']);
+      _likedCommentIds.addAll(likedComments);
+    });
   }
 
   Future<void> _loadComments({bool refresh = false}) async {
@@ -88,8 +121,30 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _likePost() async {
+    if (_hasLikedPost) return;
+    _heartCtrl.forward(from: 0.0);
     await FirestoreService.likePost(widget.post['id']);
-    setState(() => _likes++);
+    final prefs = await SharedPreferences.getInstance();
+    final liked = prefs.getStringList('liked_posts') ?? [];
+    liked.add(widget.post['id']);
+    await prefs.setStringList('liked_posts', liked);
+    if (mounted) setState(() { _likes++; _hasLikedPost = true; });
+  }
+
+  Future<void> _likeComment(String commentId, int index) async {
+    if (_likedCommentIds.contains(commentId)) return;
+    await FirestoreService.likeComment(postId: widget.post['id'], commentId: commentId);
+    final prefs = await SharedPreferences.getInstance();
+    final liked = prefs.getStringList('liked_comments') ?? [];
+    liked.add(commentId);
+    await prefs.setStringList('liked_comments', liked);
+    if (!mounted) return;
+    setState(() {
+      _likedCommentIds.add(commentId);
+      final c = Map<String, dynamic>.from(_comments[index]);
+      c['likes'] = (c['likes'] ?? 0) + 1;
+      _comments[index] = c;
+    });
   }
 
   @override
@@ -152,7 +207,24 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               GestureDetector(
                                 onTap: _likePost,
                                 child: Row(children: [
-                                  const Icon(Icons.favorite_border_rounded, size: 18, color: AppColors.textLight),
+                                  ScaleTransition(
+                                    scale: _heartScale,
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(milliseconds: 200),
+                                      transitionBuilder: (child, anim) =>
+                                          ScaleTransition(scale: anim, child: child),
+                                      child: Icon(
+                                        _hasLikedPost
+                                            ? Icons.favorite_rounded
+                                            : Icons.favorite_border_rounded,
+                                        key: ValueKey(_hasLikedPost),
+                                        size: 18,
+                                        color: _hasLikedPost
+                                            ? Colors.red.shade400
+                                            : AppColors.textLight,
+                                      ),
+                                    ),
+                                  ),
                                   const SizedBox(width: 4),
                                   Text('$_likes', style: AppTextStyles.body()),
                                 ]),
@@ -186,10 +258,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     child: Text('No comments yet — be the first!', style: AppTextStyles.body()),
                   )
                 else ...[
-                  ..._comments.map((c) => _CommentTile(
-                    comment: c,
+                  ..._comments.asMap().entries.map((entry) => _CommentTile(
+                    comment: entry.value,
                     postId: widget.post['id'],
-                    onLike: () => setState(() {}),
+                    hasLiked: _likedCommentIds.contains(entry.value['id']),
+                    onLike: () => _likeComment(entry.value['id'], entry.key),
                   )),
                   if (_hasMore)
                     Center(
@@ -253,15 +326,58 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 }
 
-class _CommentTile extends StatelessWidget {
+class _CommentTile extends StatefulWidget {
   final Map<String, dynamic> comment;
   final String postId;
+  final bool hasLiked;
   final VoidCallback onLike;
-  const _CommentTile({required this.comment, required this.postId, required this.onLike});
+  const _CommentTile({
+    required this.comment,
+    required this.postId,
+    required this.hasLiked,
+    required this.onLike,
+  });
+
+  @override
+  State<_CommentTile> createState() => _CommentTileState();
+}
+
+class _CommentTileState extends State<_CommentTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.5), weight: 40),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.5, end: 1.0).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60,
+      ),
+    ]).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _handleLike() {
+    if (widget.hasLiked) return;
+    _ctrl.forward(from: 0.0);
+    widget.onLike();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final createdAt = comment['createdAt'] as String?;
+    final createdAt = widget.comment['createdAt'] as String?;
     final date = createdAt != null ? DateTime.tryParse(createdAt) : null;
 
     return Container(
@@ -278,22 +394,34 @@ class _CommentTile extends StatelessWidget {
               child: const Icon(Icons.person_outline, color: AppColors.primary, size: 12),
             ),
             const SizedBox(width: 8),
-            Expanded(child: Text(comment['nickname'] ?? 'Anonymous', style: AppTextStyles.label(color: AppColors.textDark))),
+            Expanded(child: Text(widget.comment['nickname'] ?? 'Anonymous', style: AppTextStyles.label(color: AppColors.textDark))),
             if (date != null)
               Text(DateFormat('MMM d').format(date), style: AppTextStyles.caption()),
           ]),
           const SizedBox(height: 8),
-          Text(comment['content'] ?? '', style: AppTextStyles.body(color: AppColors.textDark)),
+          Text(widget.comment['content'] ?? '', style: AppTextStyles.body(color: AppColors.textDark)),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: () async {
-              await FirestoreService.likeComment(postId: postId, commentId: comment['id']);
-              onLike();
-            },
+            onTap: _handleLike,
             child: Row(children: [
-              const Icon(Icons.favorite_border_rounded, size: 14, color: AppColors.textLight),
+              ScaleTransition(
+                scale: _scale,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, anim) =>
+                      ScaleTransition(scale: anim, child: child),
+                  child: Icon(
+                    widget.hasLiked
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    key: ValueKey(widget.hasLiked),
+                    size: 14,
+                    color: widget.hasLiked ? Colors.red.shade400 : AppColors.textLight,
+                  ),
+                ),
+              ),
               const SizedBox(width: 4),
-              Text('${comment['likes'] ?? 0}', style: AppTextStyles.caption()),
+              Text('${widget.comment['likes'] ?? 0}', style: AppTextStyles.caption()),
             ]),
           ),
         ],
