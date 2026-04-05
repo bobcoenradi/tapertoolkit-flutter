@@ -141,35 +141,103 @@ class FirestoreService {
 
   // ─── Community posts ──────────────────────────────────────────────────────
 
-  static Future<void> createPost({
+  static Future<String> createPost({
     required String nickname,
     required String topicId,
+    required String title,
     required String content,
+    String? imageUrl,
   }) async {
-    await _db.collection('communityPosts').add({
+    final ref = await _db.collection('communityPosts').add({
       'nickname': nickname,
       'topicId': topicId,
+      'title': title,
       'content': content,
+      if (imageUrl != null) 'imageUrl': imageUrl,
       'likes': 0,
+      'commentCount': 0,
       'createdAt': DateTime.now().toIso8601String(),
     });
+    return ref.id;
   }
 
-  static Future<List<Map<String, dynamic>>> fetchPosts({String? topicId}) async {
+  /// Fetch a page of posts for a topic. Pass [lastDoc] for subsequent pages.
+  static Future<({List<Map<String, dynamic>> posts, DocumentSnapshot? lastDoc})>
+      fetchPostsPaginated({
+    required String topicId,
+    int pageSize = 15,
+    DocumentSnapshot? lastDoc,
+  }) async {
     Query q = _db
         .collection('communityPosts')
+        .where('topicId', isEqualTo: topicId)
         .orderBy('createdAt', descending: true)
-        .limit(50);
-    if (topicId != null) {
-      q = q.where('topicId', isEqualTo: topicId);
-    }
+        .limit(pageSize);
+    if (lastDoc != null) q = q.startAfterDocument(lastDoc);
     final snap = await q.get();
-    return snap.docs.map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>}).toList();
+    final posts = snap.docs
+        .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+        .toList();
+    return (posts: posts, lastDoc: snap.docs.isEmpty ? null : snap.docs.last);
   }
 
   static Future<void> likePost(String postId) async {
     await _db.collection('communityPosts').doc(postId).update({
       'likes': FieldValue.increment(1),
     });
+  }
+
+  // ─── Comments ─────────────────────────────────────────────────────────────
+
+  static Future<void> createComment({
+    required String postId,
+    required String nickname,
+    required String content,
+  }) async {
+    final batch = _db.batch();
+    final commentRef = _db
+        .collection('communityPosts')
+        .doc(postId)
+        .collection('comments')
+        .doc();
+    batch.set(commentRef, {
+      'nickname': nickname,
+      'content': content,
+      'likes': 0,
+      'createdAt': DateTime.now().toIso8601String(),
+    });
+    batch.update(_db.collection('communityPosts').doc(postId), {
+      'commentCount': FieldValue.increment(1),
+    });
+    await batch.commit();
+  }
+
+  static Future<({List<Map<String, dynamic>> comments, DocumentSnapshot? lastDoc})>
+      fetchCommentsPaginated({
+    required String postId,
+    int pageSize = 20,
+    DocumentSnapshot? lastDoc,
+  }) async {
+    Query q = _db
+        .collection('communityPosts')
+        .doc(postId)
+        .collection('comments')
+        .orderBy('createdAt')
+        .limit(pageSize);
+    if (lastDoc != null) q = q.startAfterDocument(lastDoc);
+    final snap = await q.get();
+    final comments = snap.docs
+        .map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>})
+        .toList();
+    return (comments: comments, lastDoc: snap.docs.isEmpty ? null : snap.docs.last);
+  }
+
+  static Future<void> likeComment({required String postId, required String commentId}) async {
+    await _db
+        .collection('communityPosts')
+        .doc(postId)
+        .collection('comments')
+        .doc(commentId)
+        .update({'likes': FieldValue.increment(1)});
   }
 }
