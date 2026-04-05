@@ -39,7 +39,9 @@ class MenuScreen extends StatelessWidget {
               // Profile card
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                child: Container(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+                  child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: AppDecorations.card(),
                   child: Row(
@@ -65,6 +67,7 @@ class MenuScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
 

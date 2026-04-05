@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -59,7 +58,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    if (kIsWeb) return; // image_picker on web requires extra setup
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked == null) return;
@@ -147,7 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // ── Avatar ──
                   Center(
                     child: GestureDetector(
-                      onTap: kIsWeb ? null : _pickPhoto,
+                      onTap: _pickPhoto,
                       child: Stack(
                         children: [
                           _buildAvatarPreview(),
@@ -167,11 +165,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  if (kIsWeb)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Center(child: Text('Photo upload available on mobile', style: AppTextStyles.caption())),
-                    ),
 
                   const SizedBox(height: 32),
 
