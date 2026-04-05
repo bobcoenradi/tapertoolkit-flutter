@@ -64,9 +64,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     setState(() { _submitting = true; _error = null; });
 
     try {
-      final profile = await AuthService.fetchProfile();
+      final profile = await AuthService.fetchProfile()
+          .timeout(const Duration(seconds: 10), onTimeout: () => throw Exception('Profile fetch timed out'));
+
       String? imageUrl;
-      if (_imageBytes != null) imageUrl = await _uploadImage();
+      if (_imageBytes != null) {
+        imageUrl = await _uploadImage()
+            .timeout(const Duration(seconds: 30), onTimeout: () => throw Exception('Image upload timed out'));
+      }
 
       await FirestoreService.createPost(
         nickname: profile?.nickname ?? 'Anonymous',
@@ -74,7 +79,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         title: title,
         content: content,
         imageUrl: imageUrl,
-      );
+      ).timeout(const Duration(seconds: 10), onTimeout: () => throw Exception('Post creation timed out — check your connection'));
 
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
