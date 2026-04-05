@@ -147,6 +147,7 @@ class FirestoreService {
     required String title,
     required String content,
     String? imageUrl,
+    String? authorPhotoUrl,
   }) async {
     final ref = await _db.collection('communityPosts').add({
       'nickname': nickname,
@@ -154,6 +155,7 @@ class FirestoreService {
       'title': title,
       'content': content,
       if (imageUrl != null) 'imageUrl': imageUrl,
+      if (authorPhotoUrl != null) 'authorPhotoUrl': authorPhotoUrl,
       'likes': 0,
       'commentCount': 0,
       'createdAt': DateTime.now().toIso8601String(),
@@ -193,6 +195,7 @@ class FirestoreService {
     required String postId,
     required String nickname,
     required String content,
+    String? authorPhotoUrl,
   }) async {
     final batch = _db.batch();
     final commentRef = _db
@@ -203,6 +206,7 @@ class FirestoreService {
     batch.set(commentRef, {
       'nickname': nickname,
       'content': content,
+      if (authorPhotoUrl != null) 'authorPhotoUrl': authorPhotoUrl,
       'likes': 0,
       'createdAt': DateTime.now().toIso8601String(),
     });

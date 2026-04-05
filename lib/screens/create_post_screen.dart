@@ -79,6 +79,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         title: title,
         content: content,
         imageUrl: imageUrl,
+        authorPhotoUrl: profile?.avatarUrl,
       ).timeout(const Duration(seconds: 10), onTimeout: () => throw Exception('Post creation timed out — check your connection'));
 
       if (mounted) Navigator.of(context).pop(true);

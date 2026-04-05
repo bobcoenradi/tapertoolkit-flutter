@@ -76,7 +76,7 @@ class MenuScreen extends StatelessWidget {
                 iconBg: AppColors.primarySoft,
                 iconColor: AppColors.primary,
                 label: 'Profile',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProfileScreen(profile: profile))),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
               ),
               _MenuItem(
                 icon: Icons.menu_book_outlined,

@@ -4,7 +4,9 @@ import '../theme/app_theme.dart';
 import '../models/user_profile_model.dart';
 import '../services/sanity_service.dart';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 import 'article_detail_screen.dart';
+import 'profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final UserProfile? profile;
@@ -15,6 +17,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  UserProfile? _localProfile;
   String _mood = '';
   List<SanityArticle> _articles = [];
   List<SanityTip> _tips = [];
@@ -32,7 +35,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _localProfile = widget.profile;
     _loadContent();
+  }
+
+  @override
+  void didUpdateWidget(DashboardScreen old) {
+    super.didUpdateWidget(old);
+    if (old.profile != widget.profile) {
+      _localProfile = widget.profile;
+    }
+  }
+
+  Future<void> _refreshProfile() async {
+    final profile = await AuthService.fetchProfile();
+    if (mounted) setState(() => _localProfile = profile);
+  }
+
+  Future<void> _openProfile() async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+    if (updated == true) _refreshProfile();
   }
 
   Future<void> _loadContent() async {
@@ -60,8 +84,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = widget.profile;
-    final firstName = profile?.firstName ?? profile?.nickname ?? 'SARAH';
+    final profile = _localProfile;
+    final firstName = profile?.firstName ?? profile?.nickname ?? 'there';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -69,7 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: CustomScrollView(
           slivers: [
             // Header
-            SliverToBoxAdapter(child: _buildHeader(firstName)),
+            SliverToBoxAdapter(child: _buildHeader(firstName, profile?.avatarUrl)),
 
             // Mood check-in
             SliverToBoxAdapter(child: _buildMoodSection()),
@@ -110,7 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildHeader(String name) {
+  Widget _buildHeader(String name, String? avatarUrl) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Row(
@@ -144,10 +168,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: AppColors.primarySoft,
-            child: const Icon(Icons.person_outline, color: AppColors.primary),
+          GestureDetector(
+            onTap: _openProfile,
+            child: Stack(
+              children: [
+                (avatarUrl != null && avatarUrl.isNotEmpty)
+                    ? CircleAvatar(
+                        radius: 22,
+                        backgroundImage: NetworkImage(avatarUrl),
+                        backgroundColor: AppColors.primarySoft,
+                        onBackgroundImageError: (_, __) {},
+                      )
+                    : const CircleAvatar(
+                        radius: 22,
+                        backgroundColor: AppColors.primarySoft,
+                        child: Icon(Icons.person_outline, color: AppColors.primary),
+                      ),
+                Positioned(
+                  bottom: 0, right: 0,
+                  child: Container(
+                    width: 14, height: 14,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary, shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.edit, size: 8, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

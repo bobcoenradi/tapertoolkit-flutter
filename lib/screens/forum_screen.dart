@@ -159,6 +159,24 @@ class _ForumScreenState extends State<ForumScreen> {
   }
 }
 
+class _PostAvatar extends StatelessWidget {
+  final String? url;
+  final double radius;
+  const _PostAvatar({this.url, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = url != null && url!.isNotEmpty;
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppColors.primarySoft,
+      backgroundImage: hasPhoto ? NetworkImage(url!) : null,
+      onBackgroundImageError: hasPhoto ? (_, __) {} : null,
+      child: hasPhoto ? null : Icon(Icons.person_outline, color: AppColors.primary, size: radius),
+    );
+  }
+}
+
 class _PostCard extends StatelessWidget {
   final Map<String, dynamic> post;
   final VoidCallback onTap;
@@ -198,11 +216,7 @@ class _PostCard extends StatelessWidget {
                 children: [
                   // Author + date
                   Row(children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: AppColors.primarySoft,
-                      child: const Icon(Icons.person_outline, color: AppColors.primary, size: 14),
-                    ),
+                    _PostAvatar(url: post['authorPhotoUrl'] as String?, radius: 14),
                     const SizedBox(width: 8),
                     Text(post['nickname'] ?? 'Anonymous', style: AppTextStyles.label(color: AppColors.textDark)),
                     const Spacer(),

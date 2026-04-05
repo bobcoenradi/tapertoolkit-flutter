@@ -5,6 +5,24 @@ import '../theme/app_theme.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 
+class _Avatar extends StatelessWidget {
+  final String? url;
+  final double radius;
+  const _Avatar({this.url, required this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = url != null && url!.isNotEmpty;
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppColors.primarySoft,
+      backgroundImage: hasPhoto ? NetworkImage(url!) : null,
+      onBackgroundImageError: hasPhoto ? (_, __) {} : null,
+      child: hasPhoto ? null : Icon(Icons.person_outline, color: AppColors.primary, size: radius),
+    );
+  }
+}
+
 class PostDetailScreen extends StatefulWidget {
   final Map<String, dynamic> post;
   final String topicTitle;
@@ -110,6 +128,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
       postId: widget.post['id'],
       nickname: profile?.nickname ?? 'Anonymous',
       content: text,
+      authorPhotoUrl: profile?.avatarUrl,
     );
 
     _commentCtrl.clear();
@@ -188,11 +207,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(children: [
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: AppColors.primarySoft,
-                                child: const Icon(Icons.person_outline, color: AppColors.primary, size: 16),
-                              ),
+                              _Avatar(url: widget.post['authorPhotoUrl'] as String?, radius: 16),
                               const SizedBox(width: 8),
                               Expanded(child: Text(widget.post['nickname'] ?? 'Anonymous', style: AppTextStyles.label(color: AppColors.textDark))),
                               if (date != null)
@@ -388,11 +403,7 @@ class _CommentTileState extends State<_CommentTile>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundColor: AppColors.primarySoft,
-              child: const Icon(Icons.person_outline, color: AppColors.primary, size: 12),
-            ),
+            _Avatar(url: widget.comment['authorPhotoUrl'] as String?, radius: 12),
             const SizedBox(width: 8),
             Expanded(child: Text(widget.comment['nickname'] ?? 'Anonymous', style: AppTextStyles.label(color: AppColors.textDark))),
             if (date != null)
