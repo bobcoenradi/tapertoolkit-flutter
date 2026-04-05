@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "524186089260",
+    "project_id": "tapertoolkit",
+    "storage_bucket": "tapertoolkit.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:524186089260:android:496b6c2755f28ee12f1e89",
+        "android_client_info": {
+          "package_name": "com.millsbrands.taper_toolkit_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-gclO2HZOQFAleoFrkFg5hPMTXt_Xriw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
