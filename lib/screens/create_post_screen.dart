@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -18,7 +19,8 @@ class CreatePostScreen extends StatefulWidget {
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _titleCtrl = TextEditingController();
   final _contentCtrl = TextEditingController();
-  XFile? _image;
+  XFile? _imageFile;
+  Uint8List? _imageBytes;
   bool _submitting = false;
   String? _error;
 
@@ -32,15 +34,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (picked != null) setState(() => _image = picked);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _imageFile = picked;
+      _imageBytes = bytes;
+    });
   }
 
-  Future<String?> _uploadImage(XFile file) async {
+  Future<String?> _uploadImage() async {
+    if (_imageFile == null || _imageBytes == null) return null;
     final ref = FirebaseStorage.instance
         .ref()
         .child('post_images')
-        .child('${DateTime.now().millisecondsSinceEpoch}_${file.name}');
-    final task = await ref.putFile(File(file.path));
+        .child('${DateTime.now().millisecondsSinceEpoch}_${_imageFile!.name}');
+    final task = await ref.putData(_imageBytes!);
     return await task.ref.getDownloadURL();
   }
 
@@ -58,7 +66,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     try {
       final profile = await AuthService.fetchProfile();
       String? imageUrl;
-      if (_image != null) imageUrl = await _uploadImage(_image!);
+      if (_imageBytes != null) imageUrl = await _uploadImage();
 
       await FirestoreService.createPost(
         nickname: profile?.nickname ?? 'Anonymous',
@@ -70,7 +78,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
-      if (mounted) setState(() { _submitting = false; _error = 'Failed to post. Please try again.'; });
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _error = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -156,18 +169,23 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Image picker
-            if (_image != null)
+            // Image picker — disabled on web (image_picker web support is limited)
+            if (_imageBytes != null)
               Stack(
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.file(File(_image!.path), height: 180, width: double.infinity, fit: BoxFit.cover),
+                    child: Image.memory(
+                      _imageBytes!,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                   Positioned(
                     top: 8, right: 8,
                     child: GestureDetector(
-                      onTap: () => setState(() => _image = null),
+                      onTap: () => setState(() { _imageFile = null; _imageBytes = null; }),
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
@@ -177,7 +195,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                 ],
               )
-            else
+            else if (!kIsWeb)
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
@@ -198,7 +216,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
             if (_error != null) ...[
               const SizedBox(height: 14),
-              Text(_error!, style: AppTextStyles.body(color: Colors.red.shade600)),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Text(_error!, style: AppTextStyles.body(color: Colors.red.shade700)),
+              ),
             ],
 
             const SizedBox(height: 40),
