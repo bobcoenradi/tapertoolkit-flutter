@@ -264,6 +264,35 @@ class FirestoreService {
     return (comments: comments, lastDoc: snap.docs.isEmpty ? null : snap.docs.last);
   }
 
+  static Future<void> deletePost(String postId) async {
+    await _db.collection('communityPosts').doc(postId).delete();
+  }
+
+  static Future<void> deleteComment({required String postId, required String commentId}) async {
+    final batch = _db.batch();
+    batch.delete(_db.collection('communityPosts').doc(postId).collection('comments').doc(commentId));
+    batch.update(_db.collection('communityPosts').doc(postId), {
+      'commentCount': FieldValue.increment(-1),
+    });
+    await batch.commit();
+  }
+
+  // ─── Admin ────────────────────────────────────────────────────────────────
+
+  static Future<List<Map<String, dynamic>>> searchUsersByNickname(String query) async {
+    final snap = await _db
+        .collection('users')
+        .where('nickname', isGreaterThanOrEqualTo: query)
+        .where('nickname', isLessThanOrEqualTo: '$query\uf8ff')
+        .limit(20)
+        .get();
+    return snap.docs.map((d) => {'uid': d.id, ...d.data()}).toList();
+  }
+
+  static Future<void> setUserRole(String uid, String role) async {
+    await _db.collection('users').doc(uid).update({'role': role});
+  }
+
   static Future<void> likeComment({required String postId, required String commentId}) async {
     await _db
         .collection('communityPosts')

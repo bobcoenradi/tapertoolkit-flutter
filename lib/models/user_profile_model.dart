@@ -7,6 +7,7 @@ class UserProfile {
   final String? gender;
   final int? age;
   final String? avatarUrl;
+  final String role; // 'user', 'moderator', 'admin'
 
   // Taper path
   final String purpose; // 'tapering', 'helping', 'looking'
@@ -26,6 +27,7 @@ class UserProfile {
     this.gender,
     this.age,
     this.avatarUrl,
+    this.role = 'user',
     this.purpose = 'tapering',
     this.taperDuration,
     this.medication,
@@ -50,6 +52,7 @@ class UserProfile {
       gender: m['gender'],
       age: m['age'],
       avatarUrl: m['avatarUrl'],
+      role: m['role'] ?? 'user',
       purpose: m['purpose'] ?? 'tapering',
       taperDuration: m['taperDuration'],
       medication: m['medication'],
@@ -70,6 +73,7 @@ class UserProfile {
         if (gender != null) 'gender': gender,
         if (age != null) 'age': age,
         if (avatarUrl != null) 'avatarUrl': avatarUrl,
+        'role': role,
         'purpose': purpose,
         if (taperDuration != null) 'taperDuration': taperDuration,
         if (medication != null) 'medication': medication,
@@ -86,6 +90,7 @@ class UserProfile {
     String? gender,
     int? age,
     String? avatarUrl,
+    String? role,
     String? purpose,
     String? taperDuration,
     String? medication,
@@ -103,6 +108,7 @@ class UserProfile {
         gender: gender ?? this.gender,
         age: age ?? this.age,
         avatarUrl: avatarUrl ?? this.avatarUrl,
+        role: role ?? this.role,
         purpose: purpose ?? this.purpose,
         taperDuration: taperDuration ?? this.taperDuration,
         medication: medication ?? this.medication,

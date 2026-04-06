@@ -7,6 +7,7 @@ import 'glossary_screen.dart';
 import 'faq_screen.dart';
 import 'checklist_screen.dart';
 import 'profile_screen.dart';
+import 'admin_screen.dart';
 
 class MenuScreen extends StatefulWidget {
   final UserProfile? profile;
@@ -137,6 +138,14 @@ class _MenuScreenState extends State<MenuScreen> {
                 label: 'Checklist',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChecklistScreen())),
               ),
+              if (_profile?.role == 'admin' || _profile?.role == 'moderator')
+                _MenuItem(
+                  icon: Icons.shield_outlined,
+                  iconBg: const Color(0xFFFFEBEB),
+                  iconColor: Colors.red.shade400,
+                  label: 'Admin Panel',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminScreen())),
+                ),
 
               const SizedBox(height: 24),
 

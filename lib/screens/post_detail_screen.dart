@@ -40,6 +40,7 @@ class _PostDetailScreenState extends State<PostDetailScreen>
   bool _loadingMore = false;
   bool _hasMore = true;
   bool _submitting = false;
+  String _userRole = 'user';
 
   final _commentCtrl = TextEditingController();
   late int _likes;
@@ -49,6 +50,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 
   late AnimationController _heartCtrl;
   late Animation<double> _heartScale;
+
+  bool get _isMod => _userRole == 'moderator' || _userRole == 'admin';
 
   @override
   void initState() {
@@ -70,6 +73,56 @@ class _PostDetailScreenState extends State<PostDetailScreen>
 
     _loadComments();
     _loadLikeState();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final profile = await AuthService.fetchProfile();
+    if (mounted) setState(() => _userRole = profile?.role ?? 'user');
+  }
+
+  Future<void> _deletePost() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Delete post?', style: AppTextStyles.h4()),
+        content: Text('This cannot be undone.', style: AppTextStyles.body()),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Delete', style: AppTextStyles.label(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await FirestoreService.deletePost(widget.post['id']);
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
+  Future<void> _deleteComment(String commentId, int index) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Delete comment?', style: AppTextStyles.h4()),
+        content: Text('This cannot be undone.', style: AppTextStyles.body()),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Delete', style: AppTextStyles.label(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await FirestoreService.deleteComment(postId: widget.post['id'], commentId: commentId);
+    if (!mounted) return;
+    setState(() {
+      _comments.removeAt(index);
+      _commentCount = (_commentCount - 1).clamp(0, 999999);
+    });
   }
 
   @override
@@ -182,6 +235,14 @@ class _PostDetailScreenState extends State<PostDetailScreen>
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(widget.topicTitle, style: AppTextStyles.label(color: AppColors.textMid)),
+        actions: [
+          if (_isMod)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+              onPressed: _deletePost,
+              tooltip: 'Delete post',
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -278,6 +339,8 @@ class _PostDetailScreenState extends State<PostDetailScreen>
                     postId: widget.post['id'],
                     hasLiked: _likedCommentIds.contains(entry.value['id']),
                     onLike: () => _likeComment(entry.value['id'], entry.key),
+                    canDelete: _isMod,
+                    onDelete: () => _deleteComment(entry.value['id'], entry.key),
                   )),
                   if (_hasMore)
                     Center(
@@ -346,11 +409,15 @@ class _CommentTile extends StatefulWidget {
   final String postId;
   final bool hasLiked;
   final VoidCallback onLike;
+  final bool canDelete;
+  final VoidCallback onDelete;
   const _CommentTile({
     required this.comment,
     required this.postId,
     required this.hasLiked,
     required this.onLike,
+    required this.canDelete,
+    required this.onDelete,
   });
 
   @override
@@ -412,29 +479,37 @@ class _CommentTileState extends State<_CommentTile>
           const SizedBox(height: 8),
           Text(widget.comment['content'] ?? '', style: AppTextStyles.body(color: AppColors.textDark)),
           const SizedBox(height: 8),
-          GestureDetector(
-            onTap: _handleLike,
-            child: Row(children: [
-              ScaleTransition(
-                scale: _scale,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, anim) =>
-                      ScaleTransition(scale: anim, child: child),
-                  child: Icon(
-                    widget.hasLiked
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    key: ValueKey(widget.hasLiked),
-                    size: 14,
-                    color: widget.hasLiked ? Colors.red.shade400 : AppColors.textLight,
+          Row(children: [
+            GestureDetector(
+              onTap: _handleLike,
+              child: Row(children: [
+                ScaleTransition(
+                  scale: _scale,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: Icon(
+                      widget.hasLiked
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      key: ValueKey(widget.hasLiked),
+                      size: 14,
+                      color: widget.hasLiked ? Colors.red.shade400 : AppColors.textLight,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 4),
+                Text('${widget.comment['likes'] ?? 0}', style: AppTextStyles.caption()),
+              ]),
+            ),
+            const Spacer(),
+            if (widget.canDelete)
+              GestureDetector(
+                onTap: widget.onDelete,
+                child: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
               ),
-              const SizedBox(width: 4),
-              Text('${widget.comment['likes'] ?? 0}', style: AppTextStyles.caption()),
-            ]),
-          ),
+          ]),
         ],
       ),
     );
