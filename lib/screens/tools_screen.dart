@@ -106,10 +106,6 @@ class _ToolsScreenState extends State<ToolsScreen> {
               Text('Journey', style: AppTextStyles.h4(color: AppColors.primary)),
             ],
           ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.settings_outlined, color: AppColors.textDark),
-          ),
         ],
       ),
     );

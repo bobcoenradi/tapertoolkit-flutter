@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../services/sanity_service.dart';
-import 'news_detail_screen.dart';
 import 'forum_screen.dart';
 
 class SocialScreen extends StatefulWidget {
@@ -13,7 +11,6 @@ class SocialScreen extends StatefulWidget {
 }
 
 class _SocialScreenState extends State<SocialScreen> {
-  List<SanityNewsItem> _news = [];
   List<SanityTopic> _topics = [];
   bool _loading = true;
 
@@ -25,14 +22,9 @@ class _SocialScreenState extends State<SocialScreen> {
 
   Future<void> _load() async {
     try {
-      final news = await SanityService.fetchNews(limit: 4);
       final topics = await SanityService.fetchTopics();
       if (!mounted) return;
-      setState(() {
-        _news = news;
-        _topics = topics;
-        _loading = false;
-      });
+      setState(() { _topics = topics; _loading = false; });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -51,11 +43,6 @@ class _SocialScreenState extends State<SocialScreen> {
                 child: Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: AppColors.primary))),
               )
             else ...[
-              if (_news.isNotEmpty) ...[
-                SliverToBoxAdapter(child: _buildSectionLabel('LATEST NEWS')),
-                SliverToBoxAdapter(child: _NewsCard(item: _news[0])),
-                if (_news.length > 1) SliverToBoxAdapter(child: _NewsCard(item: _news[1])),
-              ],
               SliverToBoxAdapter(child: _buildSectionLabel('FORUMS')),
               SliverToBoxAdapter(child: _buildTopics()),
             ],
@@ -69,19 +56,11 @@ class _SocialScreenState extends State<SocialScreen> {
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(children: [
-              const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text('Social', style: AppTextStyles.h4(color: AppColors.primary)),
-            ]),
-          ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search, color: AppColors.textDark)),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none_outlined, color: AppColors.textDark)),
-        ],
-      ),
+      child: Row(children: [
+        const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Text('Social', style: AppTextStyles.h4(color: AppColors.primary)),
+      ]),
     );
   }
 
@@ -93,65 +72,24 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Widget _buildTopics() {
-    final list = _topics.isNotEmpty ? _topics : _defaultTopics.map((t) => SanityTopic(id: t.$1, title: t.$2, description: t.$3, icon: t.$4)).toList();
+    final list = _topics.isNotEmpty
+        ? _topics
+        : _defaultTopics.map((t) => SanityTopic(id: t.$1, title: t.$2, description: t.$3, icon: t.$4)).toList();
     return Column(
       children: list.map((t) => _TopicTile(
         topic: t,
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => ForumScreen(topic: t)),
-        ),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ForumScreen(topic: t))),
       )).toList(),
     );
   }
 
   static const _defaultTopics = [
-    ('symptom-management', 'Symptom Management', 'Strategies, tracking, and peer support for daily challenges.', 'chart'),
-    ('success-stories', 'Success Stories', 'Celebrating milestones and final tapers from our community.', 'star'),
-    ('wellness-tips', 'Wellness Tips', 'Nutrition, sleep, and mindfulness practices during taper.', 'fitness'),
-    ('general-discussion', 'General Discussion', 'Connect with others on anything not covered elsewhere.', 'chat'),
+    ('news-announcements',  'News & Announcements', 'Updates, research, and community news from the team.', 'news'),
+    ('symptom-management',  'Symptom Management',   'Strategies, tracking, and peer support for daily challenges.', 'chart'),
+    ('success-stories',     'Success Stories',      'Celebrating milestones and final tapers from our community.', 'star'),
+    ('wellness-tips',       'Wellness Tips',         'Nutrition, sleep, and mindfulness practices during taper.', 'fitness'),
+    ('general-discussion',  'General Discussion',    'Connect with others on anything not covered elsewhere.', 'chat'),
   ];
-}
-
-class _NewsCard extends StatelessWidget {
-  final SanityNewsItem item;
-  const _NewsCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final date = item.publishedAt != null ? DateTime.tryParse(item.publishedAt!) : null;
-    return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NewsDetailScreen(item: item))),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (item.imageUrl != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.network(item.imageUrl!, height: 180, width: double.infinity, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(height: 180, color: AppColors.border)),
-              ),
-            const SizedBox(height: 10),
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(4)),
-                child: Text(item.tag.toUpperCase(), style: AppTextStyles.caption(color: AppColors.primary).copyWith(letterSpacing: 0.8)),
-              ),
-              const SizedBox(width: 8),
-              if (date != null)
-                Text(DateFormat('MMM dd, yyyy').format(date), style: AppTextStyles.caption()),
-            ]),
-            const SizedBox(height: 6),
-            Text(item.title, style: AppTextStyles.h4()),
-            const SizedBox(height: 4),
-            Text(item.excerpt, style: AppTextStyles.body(), maxLines: 2, overflow: TextOverflow.ellipsis),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _TopicTile extends StatelessWidget {
@@ -161,10 +99,11 @@ class _TopicTile extends StatelessWidget {
 
   IconData _iconData() {
     switch (topic.icon) {
-      case 'chart': return Icons.bar_chart_rounded;
-      case 'star': return Icons.star_border_rounded;
+      case 'news':    return Icons.campaign_outlined;
+      case 'chart':   return Icons.bar_chart_rounded;
+      case 'star':    return Icons.star_border_rounded;
       case 'fitness': return Icons.self_improvement_rounded;
-      default: return Icons.chat_bubble_outline_rounded;
+      default:        return Icons.chat_bubble_outline_rounded;
     }
   }
 
@@ -178,19 +117,16 @@ class _TopicTile extends StatelessWidget {
         decoration: AppDecorations.card(),
         child: Row(children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 44, height: 44,
             decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(12)),
             child: Icon(_iconData(), color: AppColors.primary, size: 22),
           ),
           const SizedBox(width: 14),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(topic.title, style: AppTextStyles.label(color: AppColors.textDark)),
-              const SizedBox(height: 2),
-              Text(topic.description, style: AppTextStyles.bodySmall(), maxLines: 1, overflow: TextOverflow.ellipsis),
-            ]),
-          ),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(topic.title, style: AppTextStyles.label(color: AppColors.textDark)),
+            const SizedBox(height: 2),
+            Text(topic.description, style: AppTextStyles.bodySmall(), maxLines: 1, overflow: TextOverflow.ellipsis),
+          ])),
           const Icon(Icons.chevron_right, color: AppColors.textLight),
         ]),
       ),

@@ -56,6 +56,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
   }
 
   bool get _isToday => isSameDay(_selectedDay, DateTime.now());
+  bool get _isFuture => _selectedDay.isAfter(DateTime.now()) && !_isToday;
 
   Future<void> _loadData() async {
     final entries = await FirestoreService.fetchJournalEntries();
@@ -97,10 +98,25 @@ class _JourneyScreenState extends State<JourneyScreen> {
     }
   }
 
+  Future<void> _selectMood(String mood) async {
+    setState(() => _mood = mood);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final key = _dateKey(_selectedDay);
+    final entry = JournalEntry(
+      id: key, uid: uid, date: _selectedDay,
+      mood: mood,
+      text: _journalCtrl.text.trim().isEmpty ? null : _journalCtrl.text.trim(),
+    );
+    await FirestoreService.saveJournalEntry(entry);
+    setState(() => _entryMap[key] = entry);
+  }
+
   String _dateKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   Color? _moodColorFor(DateTime day) {
+    // Never show mood colors for future dates
+    if (day.isAfter(DateTime.now()) && !isSameDay(day, DateTime.now())) return null;
     final entry = _entryMap[_dateKey(day)];
     if (entry == null || entry.mood.isEmpty) return null;
     return _moodColors[entry.mood];
@@ -241,10 +257,12 @@ class _JourneyScreenState extends State<JourneyScreen> {
   }
 
   Widget _buildJournalSection() {
-    final isToday = _isToday;
-    final dateLabel = isToday
+    final isFuture = _isFuture;
+    final dateLabel = _isToday
         ? 'How are you feeling today?'
-        : 'How did you feel on ${DateFormat('MMM d').format(_selectedDay)}?';
+        : isFuture
+            ? DateFormat('MMM d, yyyy').format(_selectedDay)
+            : 'How did you feel on ${DateFormat('MMM d').format(_selectedDay)}?';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -252,35 +270,36 @@ class _JourneyScreenState extends State<JourneyScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(dateLabel, style: AppTextStyles.h4()),
-          const SizedBox(height: 14),
-
-          // Mood selector
-          Row(
-            children: _moods.map((m) {
-              final selected = _mood == m.$1;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _mood = m.$1),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: selected ? m.$4 : Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: selected ? m.$4 : AppColors.border, width: 1.5),
-                      boxShadow: selected ? [BoxShadow(color: m.$4.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))] : [],
+          if (!isFuture) ...[
+            const SizedBox(height: 14),
+            // Mood selector — hidden for future dates
+            Row(
+              children: _moods.map((m) {
+                final selected = _mood == m.$1;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => _selectMood(m.$1),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: selected ? m.$4 : Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: selected ? m.$4 : AppColors.border, width: 1.5),
+                        boxShadow: selected ? [BoxShadow(color: m.$4.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))] : [],
+                      ),
+                      child: Column(children: [
+                        Text(m.$2, style: const TextStyle(fontSize: 24)),
+                        const SizedBox(height: 4),
+                        Text(m.$3, style: AppTextStyles.caption(color: selected ? AppColors.textDark : AppColors.textLight)),
+                      ]),
                     ),
-                    child: Column(children: [
-                      Text(m.$2, style: const TextStyle(fontSize: 24)),
-                      const SizedBox(height: 4),
-                      Text(m.$3, style: AppTextStyles.caption(color: selected ? AppColors.textDark : AppColors.textLight)),
-                    ]),
                   ),
-                ),
-              );
-            }).toList(),
-          ),
+                );
+              }).toList(),
+            ),
+          ],
 
           const SizedBox(height: 14),
 
@@ -293,7 +312,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
                 controller: _journalCtrl,
                 maxLines: 4,
                 decoration: InputDecoration(
-                  hintText: isToday
+                  hintText: _isToday
                       ? 'Any shifts in mood or physical symptoms today?'
                       : 'Notes for this day...',
                   hintStyle: AppTextStyles.body(color: AppColors.textLight),

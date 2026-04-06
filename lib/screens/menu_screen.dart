@@ -111,13 +111,6 @@ class _MenuScreenState extends State<MenuScreen> {
 
               // Main menu items
               _MenuItem(
-                icon: Icons.person_outline_rounded,
-                iconBg: AppColors.primarySoft,
-                iconColor: AppColors.primary,
-                label: 'Profile',
-                onTap: _openProfile,
-              ),
-              _MenuItem(
                 icon: Icons.menu_book_outlined,
                 iconBg: const Color(0xFFE0F0EC),
                 iconColor: const Color(0xFF3A8C78),
