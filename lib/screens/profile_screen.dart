@@ -95,10 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await AuthService.updateProfile(updated);
 
       if (mounted) {
-        setState(() {
-          _profile = updated;
-          _newAvatarBytes = null; // clear bytes — URL is now the source of truth
-        });
+        setState(() => _profile = updated);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile saved'), backgroundColor: AppColors.primary),
         );
