@@ -21,53 +21,52 @@ class BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
     return Container(
-      height: 64 + MediaQuery.of(context).padding.bottom,
+      height: 64 + bottomPad,
       decoration: BoxDecoration(
         color: AppColors.navBackground,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, -4)),
+          BoxShadow(
+            color: const Color(0xFF2C2017).withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, -6),
+          ),
         ],
       ),
-      child: Row(
-        children: List.generate(_items.length, (i) {
-          final active = i == currentIndex;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onTap(i),
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    active ? _items[i].activeIcon : _items[i].icon,
-                    color: active ? AppColors.primary : AppColors.textLight,
-                    size: 22,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _items[i].label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomPad),
+        child: Row(
+          children: List.generate(_items.length, (i) {
+            final active = i == currentIndex;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onTap(i),
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      active ? _items[i].activeIcon : _items[i].icon,
                       color: active ? AppColors.primary : AppColors.textLight,
+                      size: 22,
                     ),
-                  ),
-                  if (active)
-                    Container(
-                      margin: const EdgeInsets.only(top: 4),
-                      width: 24,
-                      height: 3,
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(2),
+                    const SizedBox(height: 3),
+                    Text(
+                      _items[i].label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                        color: active ? AppColors.primary : AppColors.textLight,
                       ),
                     ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }

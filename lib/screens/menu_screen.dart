@@ -51,7 +51,7 @@ class _MenuScreenState extends State<MenuScreen> {
     final dayCount = _profile?.daysSinceStart ?? 0;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
@@ -59,14 +59,8 @@ class _MenuScreenState extends State<MenuScreen> {
             children: [
               // Header
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 6),
-                    Text('The Taper Toolkit', style: AppTextStyles.label(color: AppColors.primary)),
-                  ],
-                ),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Text('Menu', style: AppTextStyles.h3()),
               ),
 
               // Profile card

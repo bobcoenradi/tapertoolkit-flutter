@@ -16,6 +16,50 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// Paints the three soft radial blobs over the base #f5ece0 background.
+class _GradientBackground extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _BlobPainter(),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _BlobPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // blob 1 — top-right
+    _drawBlob(canvas, Offset(size.width * 0.88, size.height * 0.06), size.width * 0.52);
+    // blob 2 — mid-left
+    _drawBlob(canvas, Offset(size.width * 0.0, size.height * 0.44), size.width * 0.46);
+    // blob 3 — bottom-center-right
+    _drawBlob(canvas, Offset(size.width * 0.6, size.height * 0.84), size.width * 0.48);
+  }
+
+  void _drawBlob(Canvas canvas, Offset center, double radius) {
+    // Use the same peach hue at 0 alpha for the outer stop so Flutter
+    // interpolates smoothly (avoids the muddy grey you get with Colors.transparent)
+    const innerColor  = Color(0xE6FFEBD2); // rgba(255,235,210, 0.9)
+    const midColor    = Color(0x7FFAE1C3); // rgba(250,225,195, 0.5)
+    const outerColor  = Color(0x00FFEBD2); // rgba(255,235,210, 0.0)
+
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: const [innerColor, midColor, outerColor],
+        stops: const [0.0, 0.40, 0.68],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    // Draw only up to the 68% point where it's fully transparent — beyond
+    // that is already 0 alpha so clipping at radius keeps the canvas clean.
+    canvas.drawCircle(center, radius * 0.68, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _RootObserver extends NavigatorObserver {
   final ValueNotifier<bool> atRoot = ValueNotifier(true);
   int _depth = 0;
@@ -98,6 +142,8 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: AppColors.background,
         body: Stack(
           children: [
+            // Radial gradient blobs — always behind everything
+            Positioned.fill(child: _GradientBackground()),
             Column(
               children: [
                 Expanded(

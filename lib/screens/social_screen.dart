@@ -33,7 +33,7 @@ class _SocialScreenState extends State<SocialScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -55,12 +55,8 @@ class _SocialScreenState extends State<SocialScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(children: [
-        const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
-        const SizedBox(width: 6),
-        Text('Social', style: AppTextStyles.h4(color: AppColors.primary)),
-      ]),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      child: Text('Social', style: AppTextStyles.h3()),
     );
   }
 

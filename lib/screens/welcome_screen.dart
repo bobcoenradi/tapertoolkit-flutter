@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import 'onboarding_screen.dart';
 import 'login_screen.dart';
@@ -13,7 +12,7 @@ class WelcomeScreen extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFF5F7F0), Color(0xFFE8F0EC)],
+            colors: [Color(0xFFF5ECE0), Color(0xFFEDE3D6)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -42,41 +41,29 @@ class WelcomeScreen extends StatelessWidget {
 
                 const SizedBox(height: 40),
 
-                // App icon
+                // Logo
                 Container(
-                  width: 96,
-                  height: 96,
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Colors.white.withOpacity(0.7),
                     borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE8DDD0), width: 1),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withOpacity(0.15),
+                        color: AppColors.primary.withOpacity(0.10),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.eco_rounded,
-                    size: 48,
-                    color: AppColors.primary,
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 160,
+                    fit: BoxFit.contain,
                   ),
                 ),
 
                 const SizedBox(height: 28),
-
-                Text(
-                  'The Taper Toolkit',
-                  style: GoogleFonts.manrope(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textDark,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 8),
 
                 // Divider accent
                 Container(

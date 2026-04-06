@@ -24,23 +24,29 @@ class _JourneyScreenState extends State<JourneyScreen> {
   final _journalCtrl = TextEditingController();
   String _mood = '';
 
-  // 3 moods matching dashboard
+  // 5 moods — red → orange → yellow → light-green → green
   static const _moods = [
-    ('good', '😊', 'Good',    Color(0xFFB8F0C2)),
-    ('okay', '😐', 'Okay',    Color(0xFFFFE0A8)),
-    ('hard', '😔', 'Hard',    Color(0xFFFFB8BE)),
+    ('rough', '😣', 'Rough',  Color(0xFFFFB3B3)),
+    ('low',   '😔', 'Low',   Color(0xFFFFCCA8)),
+    ('okay',  '😐', 'Okay',  Color(0xFFFFF0A0)),
+    ('good',  '🙂', 'Good',  Color(0xFFC5EDB0)),
+    ('great', '😊', 'Great', Color(0xFFB8F0C2)),
   ];
 
   static const _moodColors = {
-    'good': Color(0xFFB8F0C2),
-    'okay': Color(0xFFFFE0A8),
-    'hard': Color(0xFFFFB8BE),
-    // legacy mappings
+    'rough': Color(0xFFFFB3B3),
+    'low':   Color(0xFFFFCCA8),
+    'okay':  Color(0xFFFFF0A0),
+    'good':  Color(0xFFC5EDB0),
+    'great': Color(0xFFB8F0C2),
+    // legacy 3-mood mappings
+    'hard':    Color(0xFFFFB3B3),
+    // legacy 5-mood mappings
+    'heavy':   Color(0xFFFFB3B3),
+    'uneasy':  Color(0xFFFFCCA8),
+    'neutral': Color(0xFFFFF0A0),
+    'steady':  Color(0xFFC5EDB0),
     'radiant': Color(0xFFB8F0C2),
-    'steady':  Color(0xFFB8F0C2),
-    'neutral': Color(0xFFFFE0A8),
-    'uneasy':  Color(0xFFFFB8BE),
-    'heavy':   Color(0xFFFFB8BE),
   };
 
   @override
@@ -125,7 +131,7 @@ class _JourneyScreenState extends State<JourneyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
@@ -145,25 +151,15 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text('Journey', style: AppTextStyles.h4(color: AppColors.primary)),
-                ]),
-                const SizedBox(height: 4),
-                Text(DateFormat('MMMM yyyy').format(_focusedDay).toUpperCase(),
-                    style: AppTextStyles.caption(color: AppColors.textLight).copyWith(letterSpacing: 1)),
-                Text('Your Taper Progress', style: AppTextStyles.h2()),
-              ],
-            ),
-          ),
+          Text('Journey', style: AppTextStyles.h3()),
+          const SizedBox(height: 4),
+          Text(DateFormat('MMMM yyyy').format(_focusedDay).toUpperCase(),
+              style: AppTextStyles.caption(color: AppColors.textLight).copyWith(letterSpacing: 1)),
+          Text('Your Taper Progress', style: AppTextStyles.h2()),
         ],
       ),
     );
@@ -281,19 +277,32 @@ class _JourneyScreenState extends State<JourneyScreen> {
                     onTap: () => _selectMood(m.$1),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 180),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: selected ? m.$4 : Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: selected ? m.$4 : AppColors.border, width: 1.5),
-                        boxShadow: selected ? [BoxShadow(color: m.$4.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))] : [],
+                        color: selected ? m.$4 : m.$4.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(40),
+                        border: Border.all(
+                          color: selected ? m.$4 : Colors.transparent,
+                          width: 2,
+                        ),
+                        boxShadow: selected ? [
+                          BoxShadow(color: m.$4.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 3))
+                        ] : [],
                       ),
-                      child: Column(children: [
-                        Text(m.$2, style: const TextStyle(fontSize: 24)),
-                        const SizedBox(height: 4),
-                        Text(m.$3, style: AppTextStyles.caption(color: selected ? AppColors.textDark : AppColors.textLight)),
-                      ]),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(m.$2, style: TextStyle(fontSize: selected ? 28 : 22)),
+                          const SizedBox(height: 4),
+                          Text(
+                            m.$3,
+                            style: AppTextStyles.caption(
+                              color: selected ? AppColors.textDark : AppColors.textLight,
+                            ).copyWith(fontWeight: selected ? FontWeight.w600 : FontWeight.normal),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -301,39 +310,52 @@ class _JourneyScreenState extends State<JourneyScreen> {
             ),
           ],
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
 
-          // Journal text
+          // Notes card
           Container(
             decoration: AppDecorations.card(),
             padding: const EdgeInsets.all(16),
-            child: Column(children: [
-              TextField(
-                controller: _journalCtrl,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: _isToday
-                      ? 'Any shifts in mood or physical symptoms today?'
-                      : 'Notes for this day...',
-                  hintStyle: AppTextStyles.body(color: AppColors.textLight),
-                  border: InputBorder.none,
-                ),
-                style: AppTextStyles.body(color: AppColors.textDark),
-              ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: _saveEntry,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.edit_note_rounded, size: 18, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Text('Notes', style: AppTextStyles.h4()),
+                ]),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _journalCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: _isToday
+                        ? 'Any shifts in mood or physical symptoms today?'
+                        : 'Notes for this day...',
+                    hintStyle: AppTextStyles.body(color: AppColors.textLight),
+                    border: InputBorder.none,
+                    fillColor: Colors.transparent,
+                    filled: true,
                   ),
-                  child: Text('Save Entry', style: AppTextStyles.label(color: Colors.white)),
+                  style: AppTextStyles.body(color: AppColors.textDark),
                 ),
-              ),
-            ]),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ElevatedButton(
+                    onPressed: _saveEntry,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    child: Text('Save Entry', style: AppTextStyles.label(color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -349,9 +371,9 @@ class _JourneyScreenState extends State<JourneyScreen> {
         child: Column(
           children: [
             Row(children: [
-              const Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.textDark),
+              const Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
-              Text('Upcoming Appointments', style: AppTextStyles.h4()),
+              Text('Appointments', style: AppTextStyles.h4()),
             ]),
             const SizedBox(height: 12),
             if (_appointments.isEmpty)
@@ -387,9 +409,9 @@ class _JourneyScreenState extends State<JourneyScreen> {
         child: Column(
           children: [
             Row(children: [
-              const Icon(Icons.local_pharmacy_outlined, size: 18, color: AppColors.textDark),
+              const Icon(Icons.notifications_outlined, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
-              Text('Meds to Order', style: AppTextStyles.h4()),
+              Text('Reminders', style: AppTextStyles.h4()),
             ]),
             const SizedBox(height: 12),
             if (_meds.isEmpty)
@@ -563,7 +585,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
     controller: ctrl,
     decoration: InputDecoration(
       labelText: hint,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE8DDD0))),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE8DDD0))),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary)),
     ),
   );
@@ -596,7 +621,7 @@ class _AppointmentTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE8DDD0))),
       child: Row(children: [
         Container(
           width: 44, padding: const EdgeInsets.symmetric(vertical: 6),
@@ -634,7 +659,7 @@ class _MedTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE8DDD0))),
       child: Row(children: [
         GestureDetector(
           onTap: () => onToggle(!med.ordered),

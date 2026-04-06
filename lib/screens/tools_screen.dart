@@ -74,7 +74,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -95,19 +95,8 @@ class _ToolsScreenState extends State<ToolsScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text('Journey', style: AppTextStyles.h4(color: AppColors.primary)),
-            ],
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Text('Tools', style: AppTextStyles.h3()),
     );
   }
 
@@ -238,15 +227,22 @@ class _ToolsScreenState extends State<ToolsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.primarySoft,
-          borderRadius: BorderRadius.circular(12),
-          border: Border(left: BorderSide(color: AppColors.primary, width: 4)),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          '"Your body is unique. It\'s okay to go slow. Stability is the priority over speed."',
-          style: AppTextStyles.body(color: AppColors.textDark).copyWith(fontStyle: FontStyle.italic),
+        decoration: AppDecorations.gradientCard(),
+        padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+        child: Row(
+          children: [
+            Container(
+              width: 4, height: 60,
+              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                '"Your body is unique. It\'s okay to go slow. Stability is the priority over speed."',
+                style: AppTextStyles.body(color: AppColors.textDark).copyWith(fontStyle: FontStyle.italic),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -335,7 +331,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
 
   Widget _inputRow(TextEditingController ctrl, String hint) {
     return Container(
-      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(10)),
+      decoration: AppDecorations.inputField(),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       child: TextField(
         controller: ctrl,
@@ -415,7 +411,7 @@ class _ToolsScreenState extends State<ToolsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Container(
-        decoration: AppDecorations.card(color: AppColors.primarySoft),
+        decoration: AppDecorations.gradientCard(),
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

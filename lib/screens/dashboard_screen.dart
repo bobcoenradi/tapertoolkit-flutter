@@ -25,12 +25,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<SanityTip> _tips = [];
   int _tipIndex = 0;
   bool _loadingContent = true;
+  Appointment? _nextAppointment;
+  MedReminder? _nextReminder;
 
-  // 3 moods with pastel colors
+  // 5 moods — red → orange → yellow → light-green → green
   static const _moods = [
-    ('good', '😊', 'Good',    Color(0xFFB8F0C2)),  // pastel green
-    ('okay', '😐', 'Okay',    Color(0xFFFFE0A8)),  // pastel orange
-    ('hard', '😔', 'Hard',    Color(0xFFFFB8BE)),  // pastel red
+    ('rough', '😣', 'Rough',  Color(0xFFFFB3B3)),  // pastel red
+    ('low',   '😔', 'Low',   Color(0xFFFFCCA8)),  // pastel orange
+    ('okay',  '😐', 'Okay',  Color(0xFFFFF0A0)),  // pastel yellow
+    ('good',  '🙂', 'Good',  Color(0xFFC5EDB0)),  // pastel light-green
+    ('great', '😊', 'Great', Color(0xFFB8F0C2)),  // pastel green
   ];
 
   @override
@@ -40,6 +44,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadContent();
     _refreshProfile();
     _loadTodayMood();
+    _loadReminders();
+  }
+
+  Future<void> _loadReminders() async {
+    final appts = await FirestoreService.fetchUpcomingAppointments();
+    final meds  = await FirestoreService.fetchMedReminders();
+    if (!mounted) return;
+    setState(() {
+      _nextAppointment = appts.isNotEmpty ? appts.first : null;
+      // Show first unordered reminder, or just first if all ordered
+      _nextReminder = meds.isNotEmpty
+          ? (meds.firstWhere((m) => !m.ordered, orElse: () => meds.first))
+          : null;
+    });
   }
 
   Future<void> _loadTodayMood() async {
@@ -52,12 +70,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _mapMood(String m) {
-    if (m == 'good') return 'good';
-    if (m == 'okay') return 'okay';
-    if (m == 'hard') return 'hard';
-    if (m == 'radiant' || m == 'steady') return 'good';
+    // New 5-mood values
+    if (m == 'rough') return 'rough';
+    if (m == 'low')   return 'low';
+    if (m == 'okay')  return 'okay';
+    if (m == 'good')  return 'good';
+    if (m == 'great') return 'great';
+    // Legacy 3-mood mappings
+    if (m == 'hard')  return 'rough';
+    // Legacy 5-mood mappings
+    if (m == 'heavy')   return 'rough';
+    if (m == 'uneasy')  return 'low';
     if (m == 'neutral') return 'okay';
-    if (m == 'uneasy' || m == 'heavy') return 'hard';
+    if (m == 'steady')  return 'good';
+    if (m == 'radiant') return 'great';
     return '';
   }
 
@@ -118,7 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final firstName = profile?.firstName ?? profile?.nickname ?? 'there';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -135,22 +161,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (_tips.isNotEmpty)
               SliverToBoxAdapter(child: _buildTipsSection()),
 
-            // Library
-            SliverToBoxAdapter(child: _buildLibraryHeader()),
+            // Library — rendered as a single card list inside _buildLibraryHeader
             if (_loadingContent)
               const SliverToBoxAdapter(
                 child: Center(child: Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: EdgeInsets.fromLTRB(20, 24, 20, 0),
                   child: CircularProgressIndicator(color: AppColors.primary),
                 )),
               )
             else
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, i) => _ArticleCard(article: _articles[i]),
-                  childCount: _articles.length,
-                ),
-              ),
+              SliverToBoxAdapter(child: _buildLibraryHeader()),
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
@@ -160,67 +180,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHeader(String name, String? avatarUrl) {
+    final now = DateTime.now();
+    final dateLabel = DateFormat('EEEE, d MMMM').format(now);
+    final greetingWord = now.hour < 12 ? 'Good morning' : now.hour < 17 ? 'Good afternoon' : 'Good evening';
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          // Top row: logo + avatar
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: 52,
+                  alignment: Alignment.centerLeft,
+                  fit: BoxFit.contain,
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: _openProfile,
+                child: Stack(
                   children: [
-                    const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 6),
-                    Text('The Taper Toolkit', style: AppTextStyles.label(color: AppColors.primary)),
+                    (avatarUrl != null && avatarUrl.isNotEmpty)
+                        ? CircleAvatar(
+                            radius: 22,
+                            backgroundImage: NetworkImage(avatarUrl),
+                            backgroundColor: AppColors.primarySoft,
+                            onBackgroundImageError: (_, __) {},
+                          )
+                        : const CircleAvatar(
+                            radius: 22,
+                            backgroundColor: AppColors.primarySoft,
+                            child: Icon(Icons.person_outline, color: AppColors.primary),
+                          ),
+                    Positioned(
+                      bottom: 0, right: 0,
+                      child: Container(
+                        width: 14, height: 14,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary, shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.edit, size: 8, color: Colors.white),
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text('${_greeting()}, ${name.toUpperCase()}', style: AppTextStyles.caption(color: AppColors.textLight).copyWith(letterSpacing: 1)),
-                const SizedBox(height: 4),
-                RichText(
-                  text: TextSpan(
-                    text: 'Your path today is ',
-                    style: AppTextStyles.h2(),
-                    children: [
-                      TextSpan(
-                        text: 'steady and clear.',
-                        style: AppTextStyles.h2(color: AppColors.primary),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          GestureDetector(
-            onTap: _openProfile,
-            child: Stack(
-              children: [
-                (avatarUrl != null && avatarUrl.isNotEmpty)
-                    ? CircleAvatar(
-                        radius: 22,
-                        backgroundImage: NetworkImage(avatarUrl),
-                        backgroundColor: AppColors.primarySoft,
-                        onBackgroundImageError: (_, __) {},
-                      )
-                    : const CircleAvatar(
-                        radius: 22,
-                        backgroundColor: AppColors.primarySoft,
-                        child: Icon(Icons.person_outline, color: AppColors.primary),
-                      ),
-                Positioned(
-                  bottom: 0, right: 0,
-                  child: Container(
-                    width: 14, height: 14,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary, shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.edit, size: 8, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 20),
+          // Date
+          Text(dateLabel, style: AppTextStyles.body(color: AppColors.textLight)),
+          const SizedBox(height: 4),
+          // "Good morning," then name on next line in italic green
+          Text(
+            '$greetingWord,',
+            style: AppTextStyles.h1(color: AppColors.textDark),
+          ),
+          Text(
+            name,
+            style: AppTextStyles.h1(color: AppColors.primary).copyWith(fontStyle: FontStyle.italic),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Every small step forward is growth.',
+            style: AppTextStyles.body(color: AppColors.textLight),
           ),
         ],
       ),
@@ -243,24 +272,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onTap: () => _saveMood(m.$1),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 5),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
-                      color: selected ? m.$4 : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      color: selected ? m.$4 : m.$4.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(40),
                       border: Border.all(
-                        color: selected ? m.$4.withOpacity(0.0) : AppColors.border,
-                        width: 1.5,
+                        color: selected ? m.$4 : Colors.transparent,
+                        width: 2,
                       ),
                       boxShadow: selected ? [
-                        BoxShadow(color: m.$4.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))
+                        BoxShadow(color: m.$4.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 3))
                       ] : [],
                     ),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(m.$2, style: const TextStyle(fontSize: 28)),
-                        const SizedBox(height: 6),
-                        Text(m.$3, style: AppTextStyles.caption(color: selected ? AppColors.textDark : AppColors.textLight)),
+                        Text(m.$2, style: TextStyle(fontSize: selected ? 30 : 24)),
+                        const SizedBox(height: 4),
+                        Text(
+                          m.$3,
+                          style: AppTextStyles.caption(
+                            color: selected ? AppColors.textDark : AppColors.textLight,
+                          ).copyWith(fontWeight: selected ? FontWeight.w600 : FontWeight.normal),
+                        ),
                       ],
                     ),
                   ),
@@ -297,7 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Morning dose card
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: AppDecorations.card(color: AppColors.primarySoft),
+            decoration: AppDecorations.gradientCard(),
             child: Row(
               children: [
                 const Icon(Icons.medication_outlined, color: AppColors.primary),
@@ -307,8 +342,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('MORNING DOSE', style: AppTextStyles.caption(color: AppColors.primary).copyWith(letterSpacing: 1)),
-                      Text('${dose}mg', style: AppTextStyles.h3()),
-                      Text(med, style: AppTextStyles.body()),
+                      Text('${dose}mg', style: AppTextStyles.h3(color: AppColors.textDark)),
+                      Text(med, style: AppTextStyles.body(color: AppColors.textMid)),
                     ],
                   ),
                 ),
@@ -330,40 +365,73 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 12),
 
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Next appointment
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: AppDecorations.card(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textLight),
-                      const SizedBox(height: 6),
-                      Text('APPOINTMENT', style: AppTextStyles.caption().copyWith(letterSpacing: 0.8)),
-                      const SizedBox(height: 2),
-                      Text('Dr. Aris Thorne', style: AppTextStyles.label(color: AppColors.textDark)),
-                      Text('Tomorrow, 10:30 AM', style: AppTextStyles.bodySmall()),
-                    ],
-                  ),
+                  child: _nextAppointment != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.primary),
+                            const SizedBox(height: 6),
+                            Text('APPOINTMENT', style: AppTextStyles.caption(color: AppColors.primary).copyWith(letterSpacing: 0.8)),
+                            const SizedBox(height: 2),
+                            Text(_nextAppointment!.title, style: AppTextStyles.label(color: AppColors.textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text(
+                              DateFormat('EEE d MMM, h:mm a').format(_nextAppointment!.dateTime),
+                              style: AppTextStyles.bodySmall(),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textLight),
+                            const SizedBox(height: 6),
+                            Text('APPOINTMENT', style: AppTextStyles.caption().copyWith(letterSpacing: 0.8)),
+                            const SizedBox(height: 2),
+                            Text('None scheduled', style: AppTextStyles.label(color: AppColors.textDark)),
+                            Text('Add in Journey tab', style: AppTextStyles.bodySmall()),
+                          ],
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
+              // Next reminder
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: AppDecorations.card(color: const Color(0xFFFFF8EE)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.shopping_cart_outlined, size: 18, color: AppColors.warning),
-                      const SizedBox(height: 6),
-                      Text('REFILL NEEDED', style: AppTextStyles.caption(color: AppColors.warning).copyWith(letterSpacing: 0.8)),
-                      const SizedBox(height: 2),
-                      Text('Order New Meds', style: AppTextStyles.label(color: AppColors.textDark)),
-                      Text('4 days remaining', style: AppTextStyles.bodySmall()),
-                    ],
-                  ),
+                  child: _nextReminder != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.notifications_outlined, size: 18, color: AppColors.warning),
+                            const SizedBox(height: 6),
+                            Text('REMINDER', style: AppTextStyles.caption(color: AppColors.warning).copyWith(letterSpacing: 0.8)),
+                            const SizedBox(height: 2),
+                            Text(_nextReminder!.name, style: AppTextStyles.label(color: AppColors.textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text(
+                              _nextReminder!.dosage != null ? _nextReminder!.dosage! : _nextReminder!.status ?? 'Pending',
+                              style: AppTextStyles.bodySmall(),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.notifications_outlined, size: 18, color: AppColors.textLight),
+                            const SizedBox(height: 6),
+                            Text('REMINDER', style: AppTextStyles.caption().copyWith(letterSpacing: 0.8)),
+                            const SizedBox(height: 2),
+                            Text('None set', style: AppTextStyles.label(color: AppColors.textDark)),
+                            Text('Add in Journey tab', style: AppTextStyles.bodySmall()),
+                          ],
+                        ),
                 ),
               ),
             ],
@@ -384,27 +452,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.circular(16),
-            ),
+            decoration: AppDecorations.gradientCard(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.lightbulb_outline, color: Colors.white54, size: 20),
+                const Icon(Icons.lightbulb_outline, color: AppColors.primary, size: 20),
                 const SizedBox(height: 12),
-                Text(tip.tip, style: AppTextStyles.bodyLarge(color: Colors.white)),
+                Text(tip.tip, style: AppTextStyles.bodyLarge(color: AppColors.textDark)),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       'DAILY TIP ${_tipIndex + 1}/${_tips.length}',
-                      style: AppTextStyles.caption(color: Colors.white54).copyWith(letterSpacing: 1),
+                      style: AppTextStyles.caption(color: AppColors.primary).copyWith(letterSpacing: 1),
                     ),
                     GestureDetector(
                       onTap: () => setState(() => _tipIndex = (_tipIndex + 1) % _tips.length),
-                      child: const Icon(Icons.arrow_forward, color: Colors.white, size: 18),
+                      child: const Icon(Icons.arrow_forward, color: AppColors.primary, size: 18),
                     ),
                   ],
                 ),
@@ -417,22 +482,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildLibraryHeader() {
+    // Now renders the full article list card inline
+    if (_articles.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text('The Library', style: AppTextStyles.h4()),
-          TextButton(onPressed: () {}, child: Text('Browse All', style: AppTextStyles.label(color: AppColors.primary))),
-        ],
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      child: Container(
+        decoration: AppDecorations.card(),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Latest articles', style: AppTextStyles.h4()),
+                  GestureDetector(
+                    onTap: () {},
+                    child: Text('See all →', style: AppTextStyles.label(color: AppColors.primary)),
+                  ),
+                ],
+              ),
+            ),
+            ..._articles.asMap().entries.map((e) {
+              final i = e.key;
+              final article = e.value;
+              return Column(
+                children: [
+                  if (i > 0) const Divider(height: 1, indent: 16, endIndent: 16, color: AppColors.border),
+                  _ArticleRow(article: article),
+                ],
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _ArticleCard extends StatelessWidget {
+// Category → icon mapping for article icon boxes
+IconData _articleIcon(String category) {
+  switch (category.toLowerCase()) {
+    case 'wellness':   return Icons.favorite_border_rounded;
+    case 'safety':
+    case 'guide':      return Icons.shield_outlined;
+    case 'science':    return Icons.biotech_outlined;
+    case 'community':  return Icons.people_outline_rounded;
+    case 'nutrition':  return Icons.eco_outlined;
+    default:           return Icons.menu_book_outlined;
+  }
+}
+
+class _ArticleRow extends StatelessWidget {
   final SanityArticle article;
-  const _ArticleCard({required this.article});
+  const _ArticleRow({required this.article});
 
   @override
   Widget build(BuildContext context) {
@@ -440,50 +544,43 @@ class _ArticleCard extends StatelessWidget {
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => ArticleDetailScreen(article: article)),
       ),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        decoration: AppDecorations.card(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (article.imageUrl != null)
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                child: Image.network(
-                  article.imageUrl!,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(height: 180, color: AppColors.border),
+            // Gradient icon box
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFD6F0DC), Color(0xFF9EBFAD)],
                 ),
+                borderRadius: BorderRadius.circular(14),
               ),
-            Padding(
-              padding: const EdgeInsets.all(16),
+              child: Icon(_articleIcon(article.category), color: AppColors.primary, size: 24),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.primarySoft,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(article.category.toUpperCase(),
-                            style: AppTextStyles.caption(color: AppColors.primary).copyWith(letterSpacing: 0.8)),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(article.readTime, style: AppTextStyles.caption()),
-                    ],
+                  Text(
+                    article.title,
+                    style: AppTextStyles.label(color: AppColors.textDark),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 8),
-                  Text(article.title, style: AppTextStyles.h4()),
                   const SizedBox(height: 4),
-                  Text(article.excerpt, style: AppTextStyles.body(), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(article.readTime, style: AppTextStyles.bodySmall(color: AppColors.primary)),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textLight, size: 18),
           ],
         ),
       ),
