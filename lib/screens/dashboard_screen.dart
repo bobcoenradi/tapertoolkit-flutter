@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../models/user_profile_model.dart';
+import '../models/journal_entry_model.dart';
 import '../services/sanity_service.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
@@ -24,12 +26,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _tipIndex = 0;
   bool _loadingContent = true;
 
+  // 3 moods with pastel colors
   static const _moods = [
-    ('radiant', '😊', 'Radiant'),
-    ('steady', '🙂', 'Steady'),
-    ('neutral', '😐', 'Neutral'),
-    ('uneasy', '😕', 'Uneasy'),
-    ('heavy', '😞', 'Heavy'),
+    ('good', '😊', 'Good',    Color(0xFFB8F0C2)),  // pastel green
+    ('okay', '😐', 'Okay',    Color(0xFFFFE0A8)),  // pastel orange
+    ('hard', '😔', 'Hard',    Color(0xFFFFB8BE)),  // pastel red
   ];
 
   @override
@@ -37,7 +38,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _localProfile = widget.profile;
     _loadContent();
-    _refreshProfile(); // always fetch fresh from Firestore on mount
+    _refreshProfile();
+    _loadTodayMood();
+  }
+
+  Future<void> _loadTodayMood() async {
+    final entry = await FirestoreService.fetchEntryForDate(DateTime.now());
+    if (mounted && entry != null && entry.mood.isNotEmpty) {
+      // Map legacy 5-mood values to 3-mood
+      final mapped = _mapMood(entry.mood);
+      setState(() => _mood = mapped);
+    }
+  }
+
+  String _mapMood(String m) {
+    if (m == 'good') return 'good';
+    if (m == 'okay') return 'okay';
+    if (m == 'hard') return 'hard';
+    if (m == 'radiant' || m == 'steady') return 'good';
+    if (m == 'neutral') return 'okay';
+    if (m == 'uneasy' || m == 'heavy') return 'hard';
+    return '';
+  }
+
+  Future<void> _saveMood(String mood) async {
+    setState(() => _mood = mood);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+    final today = DateTime.now();
+    final existing = await FirestoreService.fetchEntryForDate(today);
+    final entry = JournalEntry(
+      id: '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}',
+      uid: uid,
+      date: today,
+      mood: mood,
+      text: existing?.text,
+    );
+    await FirestoreService.saveJournalEntry(entry);
   }
 
   Future<void> _refreshProfile() async {
@@ -201,32 +238,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('How are you feeling?', style: AppTextStyles.h4()),
-          const SizedBox(height: 12),
+          Text('How are you feeling today?', style: AppTextStyles.h4()),
+          const SizedBox(height: 14),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: _moods.map((m) {
               final selected = _mood == m.$1;
-              return GestureDetector(
-                onTap: () => setState(() => _mood = m.$1),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: selected ? AppColors.primarySoft : Colors.transparent,
-                        border: Border.all(
-                          color: selected ? AppColors.primary : Colors.transparent,
-                          width: 2,
-                        ),
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => _saveMood(m.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 5),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: selected ? m.$4 : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: selected ? m.$4.withOpacity(0.0) : AppColors.border,
+                        width: 1.5,
                       ),
-                      child: Center(child: Text(m.$2, style: const TextStyle(fontSize: 22))),
+                      boxShadow: selected ? [
+                        BoxShadow(color: m.$4.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 3))
+                      ] : [],
                     ),
-                    const SizedBox(height: 4),
-                    Text(m.$3, style: AppTextStyles.caption()),
-                  ],
+                    child: Column(
+                      children: [
+                        Text(m.$2, style: const TextStyle(fontSize: 28)),
+                        const SizedBox(height: 6),
+                        Text(m.$3, style: AppTextStyles.caption(color: selected ? AppColors.textDark : AppColors.textLight)),
+                      ],
+                    ),
+                  ),
                 ),
               );
             }).toList(),

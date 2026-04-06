@@ -22,14 +22,25 @@ class _JourneyScreenState extends State<JourneyScreen> {
   bool _loading = true;
 
   final _journalCtrl = TextEditingController();
-  String _mood = 'neutral';
+  String _mood = '';
+
+  // 3 moods matching dashboard
+  static const _moods = [
+    ('good', '😊', 'Good',    Color(0xFFB8F0C2)),
+    ('okay', '😐', 'Okay',    Color(0xFFFFE0A8)),
+    ('hard', '😔', 'Hard',    Color(0xFFFFB8BE)),
+  ];
 
   static const _moodColors = {
-    'radiant': AppColors.success,
-    'steady': Color(0xFF7BC67E),
-    'neutral': AppColors.warning,
-    'uneasy': AppColors.danger,
-    'heavy': Color(0xFF9E9E9E),
+    'good': Color(0xFFB8F0C2),
+    'okay': Color(0xFFFFE0A8),
+    'hard': Color(0xFFFFB8BE),
+    // legacy mappings
+    'radiant': Color(0xFFB8F0C2),
+    'steady':  Color(0xFFB8F0C2),
+    'neutral': Color(0xFFFFE0A8),
+    'uneasy':  Color(0xFFFFB8BE),
+    'heavy':   Color(0xFFFFB8BE),
   };
 
   @override
@@ -44,16 +55,18 @@ class _JourneyScreenState extends State<JourneyScreen> {
     super.dispose();
   }
 
+  bool get _isToday => isSameDay(_selectedDay, DateTime.now());
+
   Future<void> _loadData() async {
     final entries = await FirestoreService.fetchJournalEntries();
-    final appts = await FirestoreService.fetchUpcomingAppointments();
-    final meds = await FirestoreService.fetchMedReminders();
+    final appts  = await FirestoreService.fetchUpcomingAppointments();
+    final meds   = await FirestoreService.fetchMedReminders();
     if (!mounted) return;
     setState(() {
-      _entryMap = {for (final e in entries) e.dateKey: e};
+      _entryMap     = {for (final e in entries) e.dateKey: e};
       _appointments = appts;
-      _meds = meds;
-      _loading = false;
+      _meds         = meds;
+      _loading      = false;
     });
     _loadEntryForDay(_selectedDay);
   }
@@ -61,23 +74,18 @@ class _JourneyScreenState extends State<JourneyScreen> {
   Future<void> _loadEntryForDay(DateTime day) async {
     final entry = await FirestoreService.fetchEntryForDate(day);
     if (!mounted) return;
-    if (entry != null) {
-      _journalCtrl.text = entry.text ?? '';
-      setState(() => _mood = entry.mood);
-    } else {
-      _journalCtrl.clear();
-      setState(() => _mood = 'neutral');
-    }
+    setState(() {
+      _journalCtrl.text = entry?.text ?? '';
+      _mood = entry?.mood ?? '';
+    });
   }
 
   Future<void> _saveEntry() async {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final key = _dateKey(_selectedDay);
     final entry = JournalEntry(
-      id: key,
-      uid: uid,
-      date: _selectedDay,
-      mood: _mood,
+      id: key, uid: uid, date: _selectedDay,
+      mood: _mood.isEmpty ? 'okay' : _mood,
       text: _journalCtrl.text.trim().isEmpty ? null : _journalCtrl.text.trim(),
     );
     await FirestoreService.saveJournalEntry(entry);
@@ -92,10 +100,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
   String _dateKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  Color? _dotColorFor(DateTime day) {
+  Color? _moodColorFor(DateTime day) {
     final entry = _entryMap[_dateKey(day)];
-    if (entry == null) return null;
-    return _moodColors[entry.mood] ?? AppColors.textLight;
+    if (entry == null || entry.mood.isEmpty) return null;
+    return _moodColors[entry.mood];
   }
 
   @override
@@ -103,16 +111,18 @@ class _JourneyScreenState extends State<JourneyScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildHeader()),
-            SliverToBoxAdapter(child: _buildCalendar()),
-            SliverToBoxAdapter(child: _buildJournalSection()),
-            SliverToBoxAdapter(child: _buildAppointments()),
-            SliverToBoxAdapter(child: _buildMeds()),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
-        ),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            : CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: _buildHeader()),
+                  SliverToBoxAdapter(child: _buildCalendar()),
+                  SliverToBoxAdapter(child: _buildJournalSection()),
+                  SliverToBoxAdapter(child: _buildAppointments()),
+                  SliverToBoxAdapter(child: _buildMeds()),
+                  const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                ],
+              ),
       ),
     );
   }
@@ -126,13 +136,11 @@ class _JourneyScreenState extends State<JourneyScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 6),
-                    Text('Journey', style: AppTextStyles.h4(color: AppColors.primary)),
-                  ],
-                ),
+                Row(children: [
+                  const Icon(Icons.eco_rounded, size: 18, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text('Journey', style: AppTextStyles.h4(color: AppColors.primary)),
+                ]),
                 const SizedBox(height: 4),
                 Text(DateFormat('MMMM yyyy').format(_focusedDay).toUpperCase(),
                     style: AppTextStyles.caption(color: AppColors.textLight).copyWith(letterSpacing: 1)),
@@ -140,8 +148,6 @@ class _JourneyScreenState extends State<JourneyScreen> {
               ],
             ),
           ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.search, color: AppColors.textDark)),
-          CircleAvatar(radius: 18, backgroundColor: AppColors.primarySoft, child: const Icon(Icons.person_outline, color: AppColors.primary, size: 18)),
         ],
       ),
     );
@@ -157,12 +163,10 @@ class _JourneyScreenState extends State<JourneyScreen> {
         focusedDay: _focusedDay,
         selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
         onDaySelected: (selected, focused) {
-          setState(() {
-            _selectedDay = selected;
-            _focusedDay = focused;
-          });
+          setState(() { _selectedDay = selected; _focusedDay = focused; });
           _loadEntryForDay(selected);
         },
+        onPageChanged: (focused) => setState(() => _focusedDay = focused),
         calendarFormat: CalendarFormat.month,
         startingDayOfWeek: StartingDayOfWeek.monday,
         headerStyle: HeaderStyle(
@@ -176,70 +180,141 @@ class _JourneyScreenState extends State<JourneyScreen> {
           weekdayStyle: AppTextStyles.caption(color: AppColors.textLight),
           weekendStyle: AppTextStyles.caption(color: AppColors.textLight),
         ),
-        calendarStyle: CalendarStyle(
-          selectedDecoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-          todayDecoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.15),
-            shape: BoxShape.circle,
-          ),
-          todayTextStyle: AppTextStyles.label(color: AppColors.primary),
-          defaultTextStyle: AppTextStyles.body(color: AppColors.textDark),
-          weekendTextStyle: AppTextStyles.body(color: AppColors.textDark),
-          outsideTextStyle: AppTextStyles.body(color: AppColors.textLight),
-          markerDecoration: const BoxDecoration(),
+        calendarStyle: const CalendarStyle(
+          // Hide default decorations — we use calendarBuilders instead
+          defaultDecoration: BoxDecoration(),
+          weekendDecoration: BoxDecoration(),
+          outsideDecoration: BoxDecoration(),
+          selectedDecoration: BoxDecoration(),
+          todayDecoration: BoxDecoration(),
+          markerDecoration: BoxDecoration(),
         ),
         calendarBuilders: CalendarBuilders(
-          markerBuilder: (context, day, events) {
-            final color = _dotColorFor(day);
-            if (color == null) return null;
-            return Positioned(
-              bottom: 4,
-              child: Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-            );
-          },
+          defaultBuilder: (ctx, day, focused) => _buildDayCell(day, isSelected: false, isToday: false, isOutside: false),
+          todayBuilder: (ctx, day, focused) => _buildDayCell(day, isSelected: false, isToday: true, isOutside: false),
+          selectedBuilder: (ctx, day, focused) => _buildDayCell(day, isSelected: true, isToday: false, isOutside: false),
+          outsideBuilder: (ctx, day, focused) => _buildDayCell(day, isSelected: false, isToday: false, isOutside: true),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDayCell(DateTime day, {
+    required bool isSelected,
+    required bool isToday,
+    required bool isOutside,
+  }) {
+    final moodColor = _moodColorFor(day);
+    final textColor = isOutside
+        ? AppColors.textLight
+        : isSelected
+            ? Colors.white
+            : AppColors.textDark;
+
+    Color bgColor = Colors.transparent;
+    if (isSelected) bgColor = AppColors.primary;
+    else if (moodColor != null) bgColor = moodColor;
+    else if (isToday) bgColor = AppColors.primary.withOpacity(0.15);
+
+    return Center(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: bgColor,
+          shape: BoxShape.circle,
+          border: isToday && !isSelected && moodColor == null
+              ? Border.all(color: AppColors.primary, width: 1.5)
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '${day.day}',
+          style: AppTextStyles.body(color: textColor).copyWith(
+            fontWeight: isToday || isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 13,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildJournalSection() {
+    final isToday = _isToday;
+    final dateLabel = isToday
+        ? 'How are you feeling today?'
+        : 'How did you feel on ${DateFormat('MMM d').format(_selectedDay)}?';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Journal Entry for Today', style: AppTextStyles.h4()),
-          const SizedBox(height: 12),
+          Text(dateLabel, style: AppTextStyles.h4()),
+          const SizedBox(height: 14),
+
+          // Mood selector
+          Row(
+            children: _moods.map((m) {
+              final selected = _mood == m.$1;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _mood = m.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: selected ? m.$4 : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: selected ? m.$4 : AppColors.border, width: 1.5),
+                      boxShadow: selected ? [BoxShadow(color: m.$4.withOpacity(0.4), blurRadius: 6, offset: const Offset(0, 2))] : [],
+                    ),
+                    child: Column(children: [
+                      Text(m.$2, style: const TextStyle(fontSize: 24)),
+                      const SizedBox(height: 4),
+                      Text(m.$3, style: AppTextStyles.caption(color: selected ? AppColors.textDark : AppColors.textLight)),
+                    ]),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Journal text
           Container(
             decoration: AppDecorations.card(),
             padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _journalCtrl,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: 'How are you feeling today? Any shifts in mood or physical symptoms?',
-                    hintStyle: AppTextStyles.body(color: AppColors.textLight),
-                    border: InputBorder.none,
-                  ),
-                  style: AppTextStyles.body(color: AppColors.textDark),
+            child: Column(children: [
+              TextField(
+                controller: _journalCtrl,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: isToday
+                      ? 'Any shifts in mood or physical symptoms today?'
+                      : 'Notes for this day...',
+                  hintStyle: AppTextStyles.body(color: AppColors.textLight),
+                  border: InputBorder.none,
                 ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: _saveEntry,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      elevation: 0,
-                    ),
-                    child: Text('Save Entry', style: AppTextStyles.label(color: Colors.white)),
+                style: AppTextStyles.body(color: AppColors.textDark),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: _saveEntry,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
                   ),
+                  child: Text('Save Entry', style: AppTextStyles.label(color: Colors.white)),
                 ),
-              ],
-            ),
+              ),
+            ]),
           ),
         ],
       ),
@@ -254,24 +329,29 @@ class _JourneyScreenState extends State<JourneyScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Row(
-              children: [
-                const Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.textDark),
-                const SizedBox(width: 8),
-                Text('Upcoming Appointments', style: AppTextStyles.h4()),
-              ],
-            ),
+            Row(children: [
+              const Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.textDark),
+              const SizedBox(width: 8),
+              Text('Upcoming Appointments', style: AppTextStyles.h4()),
+            ]),
             const SizedBox(height: 12),
             if (_appointments.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text('No upcoming appointments', style: AppTextStyles.body()),
               )
             else
-              ..._appointments.take(3).map((a) => _AppointmentTile(appointment: a)),
-            TextButton(
+              ..._appointments.map((a) => _AppointmentTile(
+                appointment: a,
+                onDelete: () async {
+                  await FirestoreService.deleteAppointment(a.id);
+                  _loadData();
+                },
+              )),
+            TextButton.icon(
               onPressed: () => _showAddAppointmentSheet(),
-              child: Text('Add Appointment', style: AppTextStyles.label(color: AppColors.textMid)),
+              icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+              label: Text('Add Appointment', style: AppTextStyles.label(color: AppColors.primary)),
             ),
           ],
         ),
@@ -287,13 +367,11 @@ class _JourneyScreenState extends State<JourneyScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Row(
-              children: [
-                const Icon(Icons.local_pharmacy_outlined, size: 18, color: AppColors.textDark),
-                const SizedBox(width: 8),
-                Text('Meds to Order', style: AppTextStyles.h4()),
-              ],
-            ),
+            Row(children: [
+              const Icon(Icons.local_pharmacy_outlined, size: 18, color: AppColors.textDark),
+              const SizedBox(width: 8),
+              Text('Meds to Order', style: AppTextStyles.h4()),
+            ]),
             const SizedBox(height: 12),
             if (_meds.isEmpty)
               Padding(
@@ -301,26 +379,26 @@ class _JourneyScreenState extends State<JourneyScreen> {
                 child: Text('No medications tracked yet', style: AppTextStyles.body()),
               )
             else
-              ..._meds.map((m) => _MedTile(med: m, onToggle: (ordered) async {
-                final updated = MedReminder(id: m.id, uid: m.uid, name: m.name, dosage: m.dosage, ordered: ordered, refillNeededBy: m.refillNeededBy, status: ordered ? 'ordered' : 'needed');
-                await FirestoreService.saveMedReminder(updated);
-                _loadData();
-              })),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.shopping_cart_outlined, size: 16),
-                label: Text('Order Prescriptions', style: AppTextStyles.label(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-              ),
+              ..._meds.map((m) => _MedTile(
+                med: m,
+                onToggle: (ordered) async {
+                  final updated = MedReminder(
+                    id: m.id, uid: m.uid, name: m.name, dosage: m.dosage,
+                    ordered: ordered, refillNeededBy: m.refillNeededBy,
+                    status: ordered ? 'ordered' : 'needed',
+                  );
+                  await FirestoreService.saveMedReminder(updated);
+                  _loadData();
+                },
+                onDelete: () async {
+                  await FirestoreService.deleteMedReminder(m.id);
+                  _loadData();
+                },
+              )),
+            TextButton.icon(
+              onPressed: () => _showAddMedSheet(),
+              icon: const Icon(Icons.add, size: 16, color: AppColors.primary),
+              label: Text('Add Medication', style: AppTextStyles.label(color: AppColors.primary)),
             ),
           ],
         ),
@@ -330,11 +408,97 @@ class _JourneyScreenState extends State<JourneyScreen> {
 
   void _showAddAppointmentSheet() {
     final titleCtrl = TextEditingController();
-    final subtitleCtrl = TextEditingController();
-    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    final typeCtrl  = TextEditingController();
+    DateTime pickedDate = DateTime.now().add(const Duration(days: 1));
+    TimeOfDay pickedTime = const TimeOfDay(hour: 9, minute: 0);
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Add Appointment', style: AppTextStyles.h3()),
+              const SizedBox(height: 16),
+              _sheetField(titleCtrl, 'Title (e.g. Dr. Smith)'),
+              const SizedBox(height: 12),
+              _sheetField(typeCtrl, 'Type (e.g. Taper Review)'),
+              const SizedBox(height: 16),
+              // Date + Time row
+              Row(children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final d = await showDatePicker(
+                        context: ctx,
+                        initialDate: pickedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+                        builder: (c, child) => Theme(data: ThemeData(colorScheme: const ColorScheme.light(primary: AppColors.primary)), child: child!),
+                      );
+                      if (d != null) setModal(() => pickedDate = DateTime(d.year, d.month, d.day, pickedTime.hour, pickedTime.minute));
+                    },
+                    child: _datePill(Icons.calendar_today, DateFormat('MMM d, yyyy').format(pickedDate)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final t = await showTimePicker(
+                        context: ctx, initialTime: pickedTime,
+                        builder: (c, child) => Theme(data: ThemeData(colorScheme: const ColorScheme.light(primary: AppColors.primary)), child: child!),
+                      );
+                      if (t != null) setModal(() {
+                        pickedTime = t;
+                        pickedDate = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, t.hour, t.minute);
+                      });
+                    },
+                    child: _datePill(Icons.access_time, pickedTime.format(ctx)),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (titleCtrl.text.trim().isEmpty) return;
+                    final appt = Appointment(
+                      id: '', uid: '',
+                      title: titleCtrl.text.trim(),
+                      subtitle: typeCtrl.text.trim().isEmpty ? null : typeCtrl.text.trim(),
+                      dateTime: pickedDate,
+                    );
+                    await FirestoreService.saveAppointment(appt);
+                    Navigator.of(ctx).pop();
+                    _loadData();
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: Text('Save Appointment', style: AppTextStyles.label(color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddMedSheet() {
+    final nameCtrl   = TextEditingController();
+    final dosageCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -344,23 +508,30 @@ class _JourneyScreenState extends State<JourneyScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Add Appointment', style: AppTextStyles.h3()),
+            Text('Add Medication', style: AppTextStyles.h3()),
             const SizedBox(height: 16),
-            TextField(controller: titleCtrl, decoration: InputDecoration(labelText: 'Title (e.g. Dr. Smith)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            _sheetField(nameCtrl, 'Medication name (e.g. Sertraline)'),
             const SizedBox(height: 12),
-            TextField(controller: subtitleCtrl, decoration: InputDecoration(labelText: 'Type (e.g. Taper Review)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            _sheetField(dosageCtrl, 'Dosage (e.g. 50mg)'),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () async {
-                  final appt = Appointment(id: '', uid: '', title: titleCtrl.text, subtitle: subtitleCtrl.text.isEmpty ? null : subtitleCtrl.text, dateTime: selectedDate);
-                  await FirestoreService.saveAppointment(appt);
+                  if (nameCtrl.text.trim().isEmpty) return;
+                  final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                  final med = MedReminder(
+                    id: '', uid: uid,
+                    name: nameCtrl.text.trim(),
+                    dosage: dosageCtrl.text.trim().isEmpty ? null : dosageCtrl.text.trim(),
+                    status: 'needed',
+                  );
+                  await FirestoreService.saveMedReminder(med);
                   Navigator.of(ctx).pop();
                   _loadData();
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                child: Text('Save', style: AppTextStyles.label(color: Colors.white)),
+                child: Text('Save Medication', style: AppTextStyles.label(color: Colors.white)),
               ),
             ),
           ],
@@ -368,53 +539,67 @@ class _JourneyScreenState extends State<JourneyScreen> {
       ),
     );
   }
+
+  Widget _sheetField(TextEditingController ctrl, String hint) => TextField(
+    controller: ctrl,
+    decoration: InputDecoration(
+      labelText: hint,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary)),
+    ),
+  );
+
+  Widget _datePill(IconData icon, String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: AppColors.primarySoft,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(children: [
+      Icon(icon, size: 16, color: AppColors.primary),
+      const SizedBox(width: 8),
+      Flexible(child: Text(label, style: AppTextStyles.body(color: AppColors.primary), overflow: TextOverflow.ellipsis)),
+    ]),
+  );
 }
 
 class _AppointmentTile extends StatelessWidget {
   final Appointment appointment;
-  const _AppointmentTile({required this.appointment});
+  final VoidCallback onDelete;
+  const _AppointmentTile({required this.appointment, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
     final month = DateFormat('MMM').format(appointment.dateTime).toUpperCase();
-    final day = appointment.dateTime.day;
+    final day   = appointment.dateTime.day;
+    final time  = DateFormat('h:mm a').format(appointment.dateTime);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(8)),
-            child: Column(
-              children: [
-                Text(month, style: AppTextStyles.caption(color: AppColors.primary).copyWith(letterSpacing: 0.5)),
-                Text('$day', style: AppTextStyles.h4(color: AppColors.primary)),
-              ],
-            ),
+      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
+      child: Row(children: [
+        Container(
+          width: 44, padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(8)),
+          child: Column(children: [
+            Text(month, style: AppTextStyles.caption(color: AppColors.primary).copyWith(letterSpacing: 0.5)),
+            Text('$day', style: AppTextStyles.h4(color: AppColors.primary)),
+          ]),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(appointment.title, style: AppTextStyles.label(color: AppColors.textDark)),
+          Text(
+            appointment.subtitle != null ? '${appointment.subtitle} • $time' : time,
+            style: AppTextStyles.bodySmall(),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(appointment.title, style: AppTextStyles.label(color: AppColors.textDark)),
-                if (appointment.subtitle != null)
-                  Text(
-                    '${appointment.subtitle} • ${DateFormat('h:mm a').format(appointment.dateTime)}',
-                    style: AppTextStyles.bodySmall(),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ])),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLight),
+          onPressed: onDelete,
+        ),
+      ]),
     );
   }
 }
@@ -422,7 +607,8 @@ class _AppointmentTile extends StatelessWidget {
 class _MedTile extends StatelessWidget {
   final MedReminder med;
   final ValueChanged<bool> onToggle;
-  const _MedTile({required this.med, required this.onToggle});
+  final VoidCallback onDelete;
+  const _MedTile({required this.med, required this.onToggle, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -430,38 +616,34 @@ class _MedTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => onToggle(!med.ordered),
-            child: Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                shape: BoxShape.rectangle,
-                borderRadius: BorderRadius.circular(4),
-                color: med.ordered ? AppColors.primary : Colors.transparent,
-                border: Border.all(color: med.ordered ? AppColors.primary : AppColors.textLight, width: 1.5),
-              ),
-              child: med.ordered ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+      child: Row(children: [
+        GestureDetector(
+          onTap: () => onToggle(!med.ordered),
+          child: Container(
+            width: 22, height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.rectangle,
+              borderRadius: BorderRadius.circular(4),
+              color: med.ordered ? AppColors.primary : Colors.transparent,
+              border: Border.all(color: med.ordered ? AppColors.primary : AppColors.textLight, width: 1.5),
             ),
+            child: med.ordered ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${med.name}${med.dosage != null ? ' ${med.dosage}' : ''}',
-                    style: AppTextStyles.label(color: AppColors.textDark)),
-                if (med.status != null)
-                  Text(med.status!.toUpperCase(), style: AppTextStyles.caption(color: AppColors.textLight).copyWith(letterSpacing: 0.8)),
-              ],
-            ),
-          ),
-          if (!med.ordered)
-            const Icon(Icons.priority_high, color: AppColors.danger, size: 18),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${med.name}${med.dosage != null ? ' ${med.dosage}' : ''}',
+              style: AppTextStyles.label(color: AppColors.textDark)),
+          if (med.status != null)
+            Text(med.status!.toUpperCase(),
+                style: AppTextStyles.caption(color: AppColors.textLight).copyWith(letterSpacing: 0.8)),
+        ])),
+        if (!med.ordered) const Icon(Icons.priority_high, color: AppColors.danger, size: 18),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.textLight),
+          onPressed: onDelete,
+        ),
+      ]),
     );
   }
 }
